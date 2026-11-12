@@ -71,15 +71,28 @@ bun install
 bun run build:all
 ```
 
-Then point OpenCode at the build output and restart:
+Then point OpenCode at your local directory or GitHub repo:
 
 ```json
 {
-  "plugins": ["file:///absolute/path/to/antigravity-for-opencode/dist/index.js"]
+  "plugins": [
+    "git+https://github.com/chigarow/antigravity-for-opencode.git"
+  ]
 }
 ```
 
-Use `"plugin"` instead of `"plugins"` on OpenCode 1.x.
+Or for a local folder:
+
+```json
+{
+  "plugins": [
+    "./path/to/antigravity-for-opencode"
+  ]
+}
+```
+
+(Note: On OpenCode 2.x, point `"plugins"` to the plugin's root directory containing `package.json`, not directly to `dist/index.js`.)
+On OpenCode 1.x, use `"plugin": ["file:///absolute/path/to/antigravity-for-opencode/dist/index.js"]`.
 
 ## Usage
 

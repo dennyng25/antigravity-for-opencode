@@ -191,7 +191,8 @@ const SKILL_PATH = "/builtin/opencode-agy/SKILL.md";
  * inserts it verbatim, so the YAML must never reach the prompt.
  */
 function parseSkillMarkdown(markdown: string): { description: string; body: string } {
-  const lines = markdown.split("\n");
+  const normalized = markdown.replace(/\r\n/g, "\n");
+  const lines = normalized.split("\n");
   const close = lines.findIndex((line, i) => i > 0 && line.trim() === "---");
   if (lines[0]?.trim() !== "---" || close === -1) {
     throw new Error("SKILL.md must open and close a '---' frontmatter block");

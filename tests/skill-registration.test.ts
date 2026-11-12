@@ -5,7 +5,7 @@ import { setupV2Plugin } from "../src/agy-v2";
 
 const SKILL_ID = "opencode-agy";
 const SKILL_PATH = "/builtin/opencode-agy/SKILL.md";
-const skillFile = readFileSync(path.join(__dirname, "../skills/opencode-agy/SKILL.md"), "utf-8");
+const skillFile = readFileSync(path.join(__dirname, "../skills/opencode-agy/SKILL.md"), "utf-8").replace(/\r\n/g, "\n");
 const frontmatterDescription = skillFile.match(/^description: (.+)$/m)?.[1];
 // Body is everything after the closing frontmatter delimiter, trimmed.
 const expectedBody = skillFile.slice(skillFile.indexOf("\n---\n") + "\n---\n".length).trim();

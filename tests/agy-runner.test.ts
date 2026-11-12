@@ -102,7 +102,8 @@ describe("buildAgyArgs", () => {
   });
 
   test("rejects a dir outside the workspace root", () => {
-    expect(() => buildAgyArgs({ prompt: "x", dir: "/tmp", policy: { workspaceRoot: process.cwd() } })).toThrow(
+    const outside = path.dirname(process.cwd());
+    expect(() => buildAgyArgs({ prompt: "x", dir: outside, policy: { workspaceRoot: process.cwd() } })).toThrow(
       /outside the approved workspace/
     );
   });
@@ -1257,11 +1258,13 @@ describe("secure per-run temp-log lifecycle (S1)", () => {
     expect(capturedFile).toBeTruthy();
     if (capturedFile === undefined) throw new Error("test setup: --log-file not captured");
     const dir = path.dirname(capturedFile);
-    expect(path.dirname(dir)).toBe(tmpdir());
+    expect(path.resolve(path.dirname(dir))).toBe(path.resolve(tmpdir()));
     expect(path.basename(dir).startsWith("opencode-agy-")).toBe(true);
     expect(path.basename(capturedFile)).toBe("agy.log");
-    // And: live mode was exactly 0700
-    expect(liveMode).toBe(0o700);
+    // And: live mode was 0700 on POSIX platforms
+    if (process.platform !== "win32") {
+      expect(liveMode).toBe(0o700);
+    }
     // And: both file and parent directory are absent after settlement
     expect(existsSync(capturedFile)).toBe(false);
     expect(existsSync(dir)).toBe(false);

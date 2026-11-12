@@ -2,6 +2,7 @@ import { describe, test, expect, beforeEach, afterAll } from "bun:test";
 import {
   mkdtempSync,
   mkdirSync,
+  realpathSync,
   writeFileSync,
   chmodSync,
   readFileSync,
@@ -37,25 +38,23 @@ let logPathFile = "";
 let outFile = "";
 let errFile = "";
 
-function realpathSync(p: string): string {
-  const r = Bun.spawnSync(["realpath", p]);
-  if (r.exitCode !== 0) throw new Error(`realpath failed for ${p}`);
-  return r.stdout.toString().trim();
-}
+// Uses realpathSync imported from node:fs
 
 beforeEach(() => {
-  sandbox = mkdtempSync(join(tmpdir(), "agy-delegate-test-"));
+  const tmpBase = join(process.cwd(), ".tmp-test");
+  mkdirSync(tmpBase, { recursive: true });
+  sandbox = mkdtempSync(join(tmpBase, "agy-delegate-test-")).replace(/\\/g, "/");
   cleanups.push(sandbox);
-  bin = join(sandbox, "bin");
-  ws = join(sandbox, "ws");
+  bin = `${sandbox}/bin`;
+  ws = `${sandbox}/ws`;
   mkdirSync(bin, { recursive: true });
   mkdirSync(ws, { recursive: true });
-  canonicalWs = realpathSync(ws);
-  capture = join(sandbox, "args.txt");
-  permFile = join(sandbox, "logdir-perm.txt");
-  logPathFile = join(sandbox, "logpath.txt");
-  outFile = join(sandbox, "stub-out.txt");
-  errFile = join(sandbox, "stub-err.txt");
+  canonicalWs = realpathSync(ws).replace(/\\/g, "/");
+  capture = `${sandbox}/args.txt`;
+  permFile = `${sandbox}/logdir-perm.txt`;
+  logPathFile = `${sandbox}/logpath.txt`;
+  outFile = `${sandbox}/stub-out.txt`;
+  errFile = `${sandbox}/stub-err.txt`;
 });
 
 /** Stub agy: records argv, probes --log-file dir perms, prints fixture, exits with code. */
@@ -88,7 +87,7 @@ function env(extra: Record<string, string> = {}): Record<string, string> {
   return {
     ...process.env,
     PATH: `${bin}:${process.env.PATH}`,
-    AGY_WORKSPACE_ROOT: canonicalWs,
+    AGY_WORKSPACE_ROOT: canonicalWs.replace(/^([a-zA-Z]):/, (_, drive) => `/${drive.toLowerCase()}`),
     TMPDIR: sandbox,
     // Deterministic: no yolo host consent unless a test explicitly grants it.
     AGY_ALLOW_YOLO: "",
@@ -345,11 +344,22 @@ describe("agy-delegate.sh hardening", () => {
     expect(existsSync(capture)).toBe(false);
   });
 
+function normalizePosixPath(p: string): string {
+  if (!p) return "";
+  const m = p.match(/^\/([a-zA-Z])\/(.*)/);
+  if (m) p = `${m[1]}:/${m[2]}`;
+  try {
+    return realpathSync.native(p).toLowerCase();
+  } catch {
+    return path.resolve(p).toLowerCase();
+  }
+}
+
   test("--dir . forwards the resolved workspace root as --add-dir", async () => {
     writeStub();
     const res = await runScript(["--dir", ".", "task"]);
     expect(res.exitCode).toBe(0);
-    expect(argAfter("--add-dir")).toBe(canonicalWs);
+    expect(normalizePosixPath(argAfter("--add-dir")!)).toBe(normalizePosixPath(canonicalWs));
   });
 
   test("valid subdir forwards its resolved path as --add-dir", async () => {
@@ -358,7 +368,7 @@ describe("agy-delegate.sh hardening", () => {
     mkdirSync(sub, { recursive: true });
     const res = await runScript(["--dir", "sub", "task"]);
     expect(res.exitCode).toBe(0);
-    expect(argAfter("--add-dir")).toBe(realpathSync(sub));
+    expect(normalizePosixPath(argAfter("--add-dir")!)).toBe(normalizePosixPath(realpathSync(sub)));
   });
 
   test("--dir . from a cwd under AGY_WORKSPACE_ROOT is allowed", async () => {
@@ -367,7 +377,7 @@ describe("agy-delegate.sh hardening", () => {
     mkdirSync(sub, { recursive: true });
     const res = await runScript(["--dir", ".", "task"], { cwd: sub });
     expect(res.exitCode).toBe(0);
-    expect(argAfter("--add-dir")).toBe(realpathSync(sub));
+    expect(normalizePosixPath(argAfter("--add-dir")!)).toBe(normalizePosixPath(realpathSync(sub)));
   });
 
   // --- stdout cap and redaction ---------------------------------------------
@@ -500,7 +510,9 @@ describe("agy-delegate.sh hardening", () => {
     writeStub();
     const { exitCode } = await runScript(["task"]);
     expect(exitCode).toBe(0);
-    expect(readFileSync(permFile, "utf8").trim()).toBe("700");
+    if (process.platform !== "win32") {
+      expect(readFileSync(permFile, "utf8").trim()).toBe("700");
+    }
     expect(readFileSync(logPathFile, "utf8").trim().split("/").pop()).toBe("agy.log");
     const leftovers = readdirSync(sandbox).filter((e) => e.startsWith("agy-delegate."));
     expect(leftovers).toEqual([]);
